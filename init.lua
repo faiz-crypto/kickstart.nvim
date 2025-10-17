@@ -1053,5 +1053,25 @@ require('lazy').setup({
   },
 })
 
+-- Auto-theme switching based on environment
+local theme_sync = require 'theme-sync'
+
+-- Set theme on startup
+vim.api.nvim_create_autocmd('VimEnter', {
+  callback = function()
+    vim.defer_fn(function()
+      theme_sync.set_theme_from_env()
+    end, 100)
+  end,
+})
+
+-- Optional: Create user command for manual theme testing
+vim.api.nvim_create_user_command('ToggleTheme', function()
+  theme_sync.toggle_theme()
+end, {})
+
+-- Optional: Keybinding for manual toggle
+vim.keymap.set('n', '<leader>tt', theme_sync.toggle_theme, { desc = 'Toggle theme' })
+
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
