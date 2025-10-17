@@ -670,10 +670,26 @@ require('lazy').setup({
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
-        -- clangd = {},
+        clangd = {
+          cmd = {
+            'clangd',
+            '--background-index',
+            '--clang-tidy',
+            '--header-insertion=never',
+            '--completion-style=detailed',
+            '--function-arg-placeholders',
+            '--fallback-style=llvm',
+            '--cross-file-rename',
+            '--compile-commands-dir=.',
+          },
+          filetypes = { 'c', 'cpp', 'objc', 'objcpp' },
+          root_dir = function(fname)
+            return require('lspconfig.util').root_pattern('compile_commands.json', 'compile_flags.txt', '.git')(fname)
+          end,
+        },
         -- gopls = {},
         -- pyright = {},
-        -- rust_analyzer = {},
+        rust_analyzer = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
         --
         -- Some languages (like typescript) have entire language plugins that can be useful:
