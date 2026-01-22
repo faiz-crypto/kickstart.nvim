@@ -463,18 +463,19 @@ require('lazy').setup({
   },
 
   -- LSP Plugins
-  {
-    -- `lazydev` configures Lua LSP for your Neovim config, runtime and plugins
-    -- used for completion, annotations and signatures of Neovim apis
-    'folke/lazydev.nvim',
-    ft = 'lua',
-    opts = {
-      library = {
-        -- Load luvit types when the `vim.uv` word is found
-        { path = '${3rd}/luv/library', words = { 'vim%.uv' } },
-      },
-    },
-  },
+  -- Temporarily disabled to test lua_ls configuration
+  -- {
+  --   -- `lazydev` configures Lua LSP for your Neovim config, runtime and plugins
+  --   -- used for completion, annotations and signatures of Neovim apis
+  --   'folke/lazydev.nvim',
+  --   ft = 'lua',
+  --   opts = {
+  --     library = {
+  --       -- Load luvit types when the `vim.uv` word is found
+  --       { path = '${3rd}/luv/library', words = { 'vim%.uv' } },
+  --     },
+  --   },
+  -- },
   {
     -- Main LSP Configuration
     'neovim/nvim-lspconfig',
@@ -685,16 +686,11 @@ require('lazy').setup({
         --
 
         lua_ls = {
-          -- cmd = { ... },
-          -- filetypes = { ... },
-          -- capabilities = {},
           settings = {
             Lua = {
               completion = {
                 callSnippet = 'Replace',
               },
-              -- You can toggle below to ignore Lua_LS's noisy `missing-fields` warnings
-              -- diagnostics = { disable = { 'missing-fields' } },
             },
           },
         },
@@ -808,7 +804,6 @@ require('lazy').setup({
         },
         opts = {},
       },
-      'folke/lazydev.nvim',
     },
     --- @module 'blink.cmp'
     --- @type blink.cmp.Config
@@ -854,10 +849,8 @@ require('lazy').setup({
       },
 
       sources = {
-        default = { 'lsp', 'path', 'snippets', 'lazydev' },
-        providers = {
-          lazydev = { module = 'lazydev.integrations.blink', score_offset = 100 },
-        },
+        default = { 'lsp', 'path', 'snippets' },
+        providers = {},
       },
 
       snippets = { preset = 'luasnip' },
@@ -940,6 +933,7 @@ require('lazy').setup({
   },
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
+    branch = 'master', -- Use the stable master branch instead of the new rewrite
     build = ':TSUpdate',
     main = 'nvim-treesitter.configs', -- Sets main module to use for opts
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
