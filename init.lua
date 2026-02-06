@@ -199,6 +199,17 @@ vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right win
 vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
 vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
 
+-- Copy file paths to clipboard
+vim.keymap.set('n', '<leader>yp', function()
+  vim.fn.setreg('+', vim.fn.expand('%:p'))
+  print('Copied absolute path: ' .. vim.fn.expand('%:p'))
+end, { desc = '[Y]ank absolute file [P]ath' })
+
+vim.keymap.set('n', '<leader>yr', function()
+  vim.fn.setreg('+', vim.fn.expand('%'))
+  print('Copied relative path: ' .. vim.fn.expand('%'))
+end, { desc = '[Y]ank [R]elative path' })
+
 -- NOTE: Some terminals have colliding keymaps or are not able to send distinct keycodes
 -- vim.keymap.set("n", "<C-S-h>", "<C-w>H", { desc = "Move window to the left" })
 -- vim.keymap.set("n", "<C-S-l>", "<C-w>L", { desc = "Move window to the right" })
@@ -216,6 +227,36 @@ vim.api.nvim_create_autocmd('TextYankPost', {
   group = vim.api.nvim_create_augroup('kickstart-highlight-yank', { clear = true }),
   callback = function()
     vim.hl.on_yank()
+  end,
+})
+
+-- Restore cursor position when opening a file
+vim.api.nvim_create_autocmd('BufReadPost', {
+  desc = 'Restore cursor position when opening a file',
+  group = vim.api.nvim_create_augroup('restore-cursor-position', { clear = true }),
+  callback = function()
+    local mark = vim.api.nvim_buf_get_mark(0, '"')
+    local lcount = vim.api.nvim_buf_line_count(0)
+    if mark[1] > 0 and mark[1] <= lcount then
+      pcall(vim.api.nvim_win_set_cursor, 0, mark)
+    end
+  end,
+})
+
+-- Auto-checkout from Perforce when editing read-only files
+vim.api.nvim_create_autocmd('BufWritePre', {
+  desc = 'Auto-checkout from Perforce when saving read-only files',
+  group = vim.api.nvim_create_augroup('perforce-auto-edit', { clear = true }),
+  callback = function()
+    local file = vim.fn.expand('%:p')
+    -- Check if file exists, is read-only, and we're in a P4 workspace
+    if vim.fn.filereadable(file) == 1 and vim.fn.filewritable(file) == 0 then
+      local result = vim.fn.system('p4 edit ' .. vim.fn.shellescape(file))
+      if vim.v.shell_error == 0 then
+        -- Reload the file to update its permissions
+        vim.cmd('edit!')
+      end
+    end
   end,
 })
 
@@ -672,7 +713,29 @@ require('lazy').setup({
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
-        -- clangd = {},
+        clangd = {
+          cmd = {
+            'clangd',
+            '--background-index',
+            '--clang-tidy',
+            '--header-insertion=never',
+            '--completion-style=detailed',
+            '--function-arg-placeholders',
+            '--fallback-style=llvm',
+          },
+          init_options = {
+            usePlaceholders = true,
+            completeUnimported = true,
+            clangdFileStatus = true,
+          },
+          root_dir = function(fname)
+            return require('lspconfig.util').root_pattern(
+              'compile_commands.json',
+              'compile_flags.txt',
+              '.git'
+            )(fname)
+          end,
+        },
         -- gopls = {},
         -- pyright = {},
         -- rust_analyzer = {},
@@ -712,6 +775,7 @@ require('lazy').setup({
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
         'stylua', -- Used to format Lua code
+        'clangd', -- C/C++ language server
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
@@ -874,20 +938,17 @@ require('lazy').setup({
     -- change the command in the config to whatever the name of that colorscheme is.
     --
     -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
-    'folke/tokyonight.nvim',
+    'catppuccin/nvim',
+    name = 'catppuccin',
     priority = 1000, -- Make sure to load this before all the other start plugins.
     config = function()
-      ---@diagnostic disable-next-line: missing-fields
-      require('tokyonight').setup {
-        styles = {
-          comments = { italic = false }, -- Disable italics in comments
-        },
+      require('catppuccin').setup {
+        flavour = 'frappe', -- latte, frappe, macchiato, mocha
+        no_italic = true, -- Disable italics
       }
 
       -- Load the colorscheme here.
-      -- Like many other themes, this one has different styles, and you could load
-      -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-      vim.cmd.colorscheme 'tokyonight-night'
+      vim.cmd.colorscheme 'catppuccin'
     end,
   },
 
@@ -938,7 +999,7 @@ require('lazy').setup({
     main = 'nvim-treesitter.configs', -- Sets main module to use for opts
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
     opts = {
-      ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
+      ensure_installed = { 'bash', 'c', 'cpp', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
       -- Autoinstall languages that are not installed
       auto_install = true,
       highlight = {
@@ -956,6 +1017,74 @@ require('lazy').setup({
     --    - Incremental selection: Included, see `:help nvim-treesitter-incremental-selection-mod`
     --    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
     --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
+  },
+
+  { -- Navigate code structures using treesitter
+    'nvim-treesitter/nvim-treesitter-textobjects',
+    dependencies = { 'nvim-treesitter/nvim-treesitter' },
+    config = function()
+      require('nvim-treesitter.configs').setup {
+        textobjects = {
+          move = {
+            enable = true,
+            set_jumps = true, -- Add jumps to the jumplist
+            goto_next_start = {
+              [']m'] = '@function.outer',
+              [']]'] = '@class.outer',
+              [']o'] = '@loop.outer',
+              [']s'] = '@statement.outer',
+            },
+            goto_previous_start = {
+              ['[m'] = '@function.outer',
+              ['[['] = '@class.outer',
+              ['[o'] = '@loop.outer',
+              ['[s'] = '@statement.outer',
+            },
+            goto_next_end = {
+              [']M'] = '@function.outer',
+              [']['] = '@class.outer',
+            },
+            goto_previous_end = {
+              ['[M'] = '@function.outer',
+              ['[]'] = '@class.outer',
+            },
+          },
+          select = {
+            enable = true,
+            lookahead = true, -- Automatically jump forward to textobj
+            keymaps = {
+              -- You can use the capture groups defined in textobjects.scm
+              ['af'] = '@function.outer',
+              ['if'] = '@function.inner',
+              ['ac'] = '@class.outer',
+              ['ic'] = '@class.inner',
+            },
+          },
+        },
+      }
+    end,
+  },
+
+  { -- Sticky scroll showing current function/class context
+    'nvim-treesitter/nvim-treesitter-context',
+    dependencies = { 'nvim-treesitter/nvim-treesitter' },
+    opts = {
+      enable = true,
+      max_lines = 10, -- Maximum number of context lines to show
+      min_window_height = 0, -- Minimum editor window height to enable context
+      line_numbers = true,
+      multiline_threshold = 10, -- Maximum number of lines to show for a single context
+      trim_scope = 'outer', -- Which context lines to discard if max_lines is exceeded
+      mode = 'cursor', -- Line used to calculate context ('cursor' or 'topline')
+    },
+    config = function(_, opts)
+      local context = require 'treesitter-context'
+      context.setup(opts)
+      -- Add keybinding to toggle context
+      vim.keymap.set('n', '<leader>tc', function()
+        context.toggle()
+      end, { desc = '[T]oggle [C]ontext' })
+    end,
   },
 
   -- The following comments only work if you have downloaded the kickstart repo, not just copy pasted the
